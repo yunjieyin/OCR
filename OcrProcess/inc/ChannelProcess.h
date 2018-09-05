@@ -27,7 +27,7 @@ namespace OCRProcess
 	public:
 		TemplateImg* tempImg;
 
-		openslam::slam::ORBextractor extractor;
+		orb::ORBextractor extractor;
 
 		std::vector< ALGO_RES_OCR_OBJECT_SEGMENT>  ocr_out;
 #pragma region Field

@@ -35,22 +35,29 @@ void Segment::clean()
 	D_rois_pointVec.clear();
 	roiBinaryImgVec.clear();
 	roisOffsetPosVec.clear();
-
 }
 
-void Segment::loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptor, std::vector<cv::Point2f>& chipPos, double refAngle)
+void Segment::loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+	cv::Mat& descriptor, std::vector<cv::Point2f>& chipPos, double refAngle)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:init template picture's parameters
+	* changed date :
+	* user         :
+	*********************************************************************/
 	imgTemplate = img;
 	templateKeyPoint = keypoints;
 	TemplateDescriptor = descriptor;
 	T_chipPosPointVec = chipPos;
 	D_chipNum = 1;
 
-	int rowsImg = imgTemplate.rows;
-	int colsImg = imgTemplate.cols;
-
-	centerPoint = cv::Point2f(colsImg / 2, rowsImg / 2);
-	refPoint = cv::Point2f(colsImg, rowsImg / 2);
+	centerPoint = cv::Point2f(imgTemplate.cols / 2, imgTemplate.rows / 2);
+	refPoint = cv::Point2f(imgTemplate.cols, imgTemplate.rows / 2);
 
 	T_refAngle = refAngle;	
 }
@@ -79,8 +86,7 @@ void Segment::caliImgDetect()
 
 	cv::Point center = cv::Point(colsImg / 2, rowsImg / 2);
 	cv::Mat M = getRotationMatrix2D(center, caliedAngle, 1);
-	warpAffine(imgDetect, imgDetectCalied, M, cv::Size(colsImg, rowsImg));
-	
+	warpAffine(imgDetect, imgDetectCalied, M, cv::Size(colsImg, rowsImg));	
 }
 
 bool Segment::InitDetect(cv::Mat detectImg)
@@ -91,6 +97,16 @@ bool Segment::InitDetect(cv::Mat detectImg)
 
 bool Segment::initImage(ALGO_IN_OCR* ptr_algoDataIn, cv::Mat& img)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:init the picture of under detection
+	* changed date :
+	* user         :
+	*********************************************************************/
 	if (ptr_algoDataIn->ptr_bits == NULL)
 	{
 		return false;
@@ -136,15 +152,25 @@ void Segment::InitKeyPoints(std::vector<cv::KeyPoint> c_templateKeyPoint, cv::Ma
 	TemplateDescriptor = c_TemplateDescriptor;
 }
 
-bool Segment::pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> pointVecVec, std::vector<std::vector<cv::Rect>> &rectVecVec)
+bool Segment::pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> charsPoints, std::vector<std::vector<cv::Rect>> &charsRects)
 {
-	int pointVecNum = pointVecVec.size();
-	rectVecVec.clear();
-	rectVecVec.resize(0);
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:convert points to rects of characters' position
+	* changed date :
+	* user         :
+	*********************************************************************/
+	int NumROI = charsPoints.size();
+	charsRects.clear();
+	charsRects.resize(0);
 
-	for (int i = 0; i < pointVecNum; ++i)
+	for (int i = 0; i < NumROI; ++i)
 	{
-		std::vector<cv::Point2f> pointVec = pointVecVec[i];
+		std::vector<cv::Point2f> pointVec = charsPoints[i];
 		int rectVecNum = pointVec.size() / 4;
 
 		if (rectVecNum < 1)
@@ -223,12 +249,11 @@ bool Segment::pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> point
 			rectVec[rectIdx++] = rect;
 		}
 
-		rectVecVec.push_back(rectVec);
+		charsRects.push_back(rectVec);
 	}
 
 	return true;
 }
-
 
 double Segment::calcAngle(cv::Point2f point1, cv::Point2f point2)
 {
@@ -249,7 +274,6 @@ double Segment::calcAngle(cv::Point2f point1, cv::Point2f point2)
 	
 	return angle;
 }
-
 
 void Segment::detectChip(cv::Mat img, std::vector<cv::Rect> &rectVec, int &chipNum)
 {
@@ -394,6 +418,16 @@ int Segment::calcThreshold(cv::Mat img)
 
 bool Segment::slicePosition()
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:the concreat implementation of segment
+	* changed date :
+	* user         :
+	*********************************************************************/
 	if (imgTemplate.empty() || imgDetect.empty())
 	{
 		return false;
@@ -403,9 +437,7 @@ bool Segment::slicePosition()
 	D_rois_pointVec.clear();
 	std::vector<std::vector<cv::Rect>> roiVec = T_rois_rectVec;
 	
-	//orb2 = cv::ORB::create(FEATURE_POINTS_NUM, 1.2, 4, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31);
-	//orb2->detectAndCompute(imgDetect, cv::Mat(), detectKeyPoint, detectDescriptor, false);
-	//openslam::slam::ORBextractor extractor;
+	//compute under detectoin picuter's keypoints and descriptors
 	extractor(imgDetect, cv::Mat(), detectKeyPoint, detectDescriptor);
 			
 	cv::BFMatcher bfmatcher(cv::NORM_HAMMING, true);
@@ -413,15 +445,15 @@ bool Segment::slicePosition()
 
 	//refine the keypoints...
 	refineKeyPoints(templateKeyPoint, detectKeyPoint, 3, matches, refineMat);
-	double size = matches.size();
-	double ratio = size / FEATURE_POINTS_NUM;
+	double numMatched = matches.size();
+	double ratio = numMatched / FEATURE_POINTS_NUM;
 	if (ratio < 0.02)
 	{
 		return false;
 	}
 
-	std::vector<cv::Point2f> chipKeyPointVec(size);
-	std::vector<cv::Point2f> detectKeyPointVec(size);
+	std::vector<cv::Point2f> chipKeyPointVec(numMatched);
+	std::vector<cv::Point2f> detectKeyPointVec(numMatched);
 
 	for (int j = 0; j < matches.size(); j++)
 	{
@@ -429,10 +461,9 @@ bool Segment::slicePosition()
 		detectKeyPointVec[j] = detectKeyPoint[matches[j].trainIdx].pt;
 	}
 
-	M= cv::findHomography(chipKeyPointVec, detectKeyPointVec, CV_RANSAC);
+	M = cv::findHomography(chipKeyPointVec, detectKeyPointVec, CV_RANSAC);
 
-	//test start: center point mapping
-	
+	//test start: center point mapping	
 	if (0)
 	{
 		std::vector<cv::Point2f> sceneCenterPoint(1);
@@ -493,7 +524,6 @@ bool Segment::slicePosition()
 			cv::circle(imgDetect, D_chipPosPointVec[pointIndex], 3, cv::Scalar(0, 0, 255), 3);
 		}
 	}
-
 	
 	//draw the mapped points on the detect image
 	int count = 0;
@@ -510,9 +540,11 @@ bool Segment::slicePosition()
 
 		}
 	}
+
 	
 	D_rois_rectVec.clear();
 
+	//convert rectangular vertices to rects 
 	b_rVal = pointVecVec2rectVecVec(D_rois_pointVec, D_rois_rectVec);
 	if (!b_rVal)
 	{
@@ -547,6 +579,7 @@ bool Segment::slicePosition()
 	
 	}
 
+	//compute each of roi's rectangular vertices
 	b_rVal = roisRectVec2roisPosRectVec(D_rois_rectVec);
 	if (!b_rVal)
 	{
@@ -563,7 +596,7 @@ bool Segment::slicePosition()
 	{
 		cv::imshow("roiImg0", roiBinaryImgVec[0]);
 	}
-
+	//adjust character's rectangle 
 	b_rVal = refineCharPos();
 	if (!b_rVal)
 	{
@@ -666,6 +699,16 @@ double Segment::chipsAngle(cv::Rect detectChipRect, cv::Mat M)
 
 bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois_rectVec)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:compute each of roi's rectangular vertices 
+	* changed date :
+	* user         :
+	*********************************************************************/
 	D_roisPosRectVec.clear();
 
 	if (rois_rectVec.empty())
@@ -771,6 +814,16 @@ bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois
 
 bool Segment::roiBinary()
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:compute the binary images responding to all of the rois
+	* changed date :
+	* user         :
+	*********************************************************************/
 	cv::Mat roiImg;
 
 	roisOffsetPosVec.clear();
@@ -804,12 +857,22 @@ bool Segment::roiBinary()
 
 bool Segment::refineCharPos()
 {
-
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:adjust character's rect according to binary image info
+	* changed date :
+	* user         :
+	*********************************************************************/
+	int ii;
 	for (int i = 0; i < roiBinaryImgVec.size(); ++i)
 	{
 		for (int j = 0; j < D_rois_rectVec[i].size(); ++j)
 		{
-			int ii = i;
+			ii = i;
 			D_rois_rectVec[ii][j].x -= roisOffsetPosVec[ii][0];
 			D_rois_rectVec[ii][j].y -= roisOffsetPosVec[ii][1];
 
@@ -823,7 +886,7 @@ bool Segment::refineCharPos()
 
 		for (int j = 0; j < D_rois_rectVec[i].size(); ++j)
 		{
-			int ii = i;
+			ii = i;
 			D_rois_rectVec[ii][j].x += roisOffsetPosVec[ii][0];
 			D_rois_rectVec[ii][j].y += roisOffsetPosVec[ii][1];
 
@@ -836,7 +899,6 @@ bool Segment::refineCharPos()
 
 	return true;
 }
-
 
 void Segment::tuneCharRectPos(cv::Mat binaryImg, std::vector<cv::Rect>& rectVec)
 {
@@ -859,6 +921,16 @@ void Segment::tuneCharRectPos(cv::Mat binaryImg, std::vector<cv::Rect>& rectVec)
 
 void Segment::verticalForgroundPixVal(cv::Mat img, cv::Rect &rect, int pixVal)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:adjust rect according to the number of foreground pixels
+	* changed date :
+	* user         :
+	*********************************************************************/
 	int xMin = rect.x;
 	int xMax = rect.x + rect.width > img.cols? rect.x: rect.x + rect.width;
 
@@ -875,7 +947,6 @@ void Segment::verticalForgroundPixVal(cv::Mat img, cv::Rect &rect, int pixVal)
 			xIndex = 0;
 			continue;
 		}
-
 
 		int shiftPosPixNuM = verPixNum(img, xIndex, yMin, yMax, pixVal);
 		if (LtotalPixNum > 0)
@@ -926,7 +997,6 @@ int Segment::verPixNum(cv::Mat img, int xPos, int yMin, int yMax, int pixVal)
 
 	return pixNum;
 }
-
 
 int Segment::backGroundVal(cv::Mat binaryImg)
 {

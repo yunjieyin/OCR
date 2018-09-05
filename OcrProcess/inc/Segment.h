@@ -26,7 +26,8 @@ public:
 	static bool initImage(ALGO_IN_OCR*, cv::Mat&);
 	void InitKeyPoints(std::vector<cv::KeyPoint> templateKeyPoint, cv::Mat TemplateDescriptor);
 	void clean();
-	void loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptor, std::vector<cv::Point2f>& chipPos,double);
+	void loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+		cv::Mat& descriptor, std::vector<cv::Point2f>& chipPos,double);
 	
 
 private:
@@ -44,7 +45,8 @@ private:
 	double calcAngle(cv::Point2f point1, cv::Point2f point2);
 	void detectChip(cv::Mat img, std::vector<cv::Rect> &rectVec, int &chipNum);
 	int calcThreshold(cv::Mat img);
-	bool pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> pointVecVec, std::vector<std::vector<cv::Rect>> &rectVecVec);
+	bool pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> pointVecVec,
+		std::vector<std::vector<cv::Rect>> &rectVecVec);
 	bool roiBinary();
 	bool refineCharPos();
 	void tuneCharRectPos(cv::Mat binaryImg, std::vector<cv::Rect>& rectVec);
@@ -92,6 +94,6 @@ private:
 	//all of points of ROIs corresponding to under detection picture, each of point vector is the set of ROI points
 	std::vector<std::vector<cv::Point2f>> D_rois_pointVec;
 
-	openslam::slam::ORBextractor extractor;
+	orb::ORBextractor extractor;
 
 };

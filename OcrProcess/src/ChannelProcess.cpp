@@ -27,14 +27,26 @@ OCRProcess::CChannelProcess::~CChannelProcess()
 
 int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:
+	* Parameter OUT:
+	* Remarks      :
+	* function desc:init template picture's parameters according to config info
+	* changed date :
+	* user         :
+	*********************************************************************/
 	int s1 = sizeof(ALGO_CFG_OCR);
 	int s2 = sizeof(*_segmentcfg);
 	int s3 = sizeof(*mptr_Ocr_CFG);
 	memcpy(mptr_Ocr_CFG, _segmentcfg, sizeof(ALGO_CFG_OCR));
-	//OCRProcess::CChannelResource::gmp_imgTemplate = cv::imread(mptr_Ocr_CFG->img_path);
-	///
-	tempImg->CT_imgTemplate = cv::imread(mptr_Ocr_CFG->img_path);//sample picture
 
+	//original template picture
+	tempImg->CT_imgTemplate = cv::imread(mptr_Ocr_CFG->img_path);
+
+	//init objects's postions of the template picture
+	cv::Point2f point1, point2, point3, point4;
 	for (int _index_object = 0; _index_object < mptr_Ocr_CFG->nbr_object; _index_object++)
 	{
 		//use rectangle match polygon start
@@ -58,7 +70,6 @@ int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 				yMin = mptr_Ocr_CFG->tbl_object[_index_object].sp_vertices_pos[i].y;
 		}
 
-		cv::Point2f point1, point2, point3, point4;
 		point1.x = xMin;
 		point1.y = yMin;
 
@@ -71,14 +82,14 @@ int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 		point4.x = xMin;
 		point4.y = yMax;
 
-		if (xMin < 0 || yMin < 0 || xMax > tempImg->CT_imgTemplate.cols || yMax > tempImg->CT_imgTemplate.rows || xMax <= xMin || yMax <= yMin)
+		if (xMin < 0 || yMin < 0 || xMax > tempImg->CT_imgTemplate.cols
+			|| yMax > tempImg->CT_imgTemplate.rows || xMax <= xMin || yMax <= yMin)
 		{
-			return 2; //template picture's position points(4) not valid
+			return 2; //tailored template picture's position points(4) not valid
 		}
 
-		//use rectangle match polygon end
-
-		tempImg->CT_imgObj = tempImg->CT_imgTemplate(cv::Range(yMin, yMax), cv::Range(xMin, xMax));// template picture matched the polygon
+		// init tailored template picture that mathch the polygon
+		tempImg->CT_imgObj = tempImg->CT_imgTemplate(cv::Range(yMin, yMax), cv::Range(xMin, xMax));
 
 		tempImg->CT_offset_x = xMin;
 		tempImg->CT_offset_y = yMin;
@@ -86,21 +97,25 @@ int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 		if(CALI_TMP)
 			tempImg->caliImage();
 
-		//openslam::slam::ORBextractor extractor;
-		
-		//tempImg->CT_orb1 = cv::ORB::create(FEATURE_POINTS_NUM, 1.2, 4, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31);
+		//compute tailored template picture's keypoints and descriptors
 		if (CALI_TMP)
 			extractor(tempImg->CT_caliedImgObj, cv::Mat(), tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor);
 		else
 			extractor(tempImg->CT_imgObj, cv::Mat(), tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor);
 
-		/*tempImg->CT_orb1 = cv::ORB::create(FEATURE_POINTS_NUM, 1.2, 4, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31);
-		if (CALI_TMP)
-			tempImg->CT_orb1->detectAndCompute(tempImg->CT_caliedImgObj, cv::Mat(), tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor, false);
-		else
-			tempImg->CT_orb1->detectAndCompute(tempImg->CT_imgObj, cv::Mat(), tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor, false);*/
-
-		// template chip position point vector
+		if (0)
+		{
+			//compute keypoints and descriptors by opencv's ORB method
+			tempImg->CT_orb1 = cv::ORB::create(FEATURE_POINTS_NUM, 1.2, 4, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31);
+			if (CALI_TMP)
+				tempImg->CT_orb1->detectAndCompute(tempImg->CT_caliedImgObj, cv::Mat(), tempImg->CT_templateKeyPoint, 
+					tempImg->CT_TemplateDescriptor, false);
+			else
+				tempImg->CT_orb1->detectAndCompute(tempImg->CT_imgObj, cv::Mat(), tempImg->CT_templateKeyPoint, 
+					tempImg->CT_TemplateDescriptor, false);
+		}
+		
+		//chip's position that lies in tailored template picture
 		point1.x -= tempImg->CT_offset_x;
 		point1.y -= tempImg->CT_offset_y;
 		point2.x -= tempImg->CT_offset_x;
@@ -122,6 +137,7 @@ int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 		tempImg->topRightPoint.y = mptr_Ocr_CFG->tbl_object[_index_object].sp_vertices_pos[1].y;
 	}
 
+	//compute template picture's slant angle
 	tempImg->refAngle = tempImg->calcAngle(tempImg->topLeftPoint, tempImg->topRightPoint);
 
 
@@ -130,29 +146,17 @@ int OCRProcess::CChannelProcess::SetBaseInfo(ALGO_CFG_OCR * _segmentcfg)
 
 int OCRProcess::CChannelProcess::RunProcess(ALGO_IN_OCR * _segmentIn, std::vector<ALGO_RES_OCR_OBJECT_SEGMENT>& _segmentOut)
 {
+	/*********************************************************************
+	* function name:
+	* called   by  :
+	* Parameters IN:info of template picture and under detect picture
+	* Parameter OUT:segment position lies in under detect picture
+	* Remarks      :
+	* function desc:main entrance of segment
+	* changed date :
+	* user         :
+	*********************************************************************/
 	memset(&_segmentOut, 0, sizeof(_segmentOut));
-#pragma region 创建可以输出的文件夹目录
-	//{
-	//	std::string dir;
-	//	time_t now = time(NULL);
-	//	const tm *_time = localtime(&now);
-
-	//	dir = segmentDirPath;
-	//	strftime(dirPath_MiddleImage, sizeof(dirPath_MiddleImage), dir.append("%Y-%m-%d_%H-%M-%S\\_middle\\").c_str(), _time);//将获得的时间路径存入wenjian
-	//	dir = segmentDirPath;
-	//	strftime(dirPath_ResultImage, sizeof(dirPath_ResultImage), dir.append("%Y-%m-%d_%H-%M-%S\\_result\\").c_str(), _time);//将获得的时间路径存入wenjian
-	//	char cmdchar[256];
-	//	sprintf(cmdchar, "md %s", dirPath_MiddleImage);//将创建文件的命令存入cmdchar中
-	//	system(cmdchar);//创建文件夹
-	//	sprintf(cmdchar, "md %s", dirPath_ResultImage);//将创建文件的命令存入cmdchar中
-	//	system(cmdchar);//创建文件夹
-	//}
-#pragma endregion
-	///数据源：mptr_Ocr_CFG、_segmentIn
-	///输出对象：_segmentOut
-	///已定义的参数
-	///dirPath_MiddleImage：中间结果的文件夹目录
-	///dirPath_ResultImage：最终结果的文件夹目录
 
 	double consumetime;
 	double startTime;
@@ -162,58 +166,73 @@ int OCRProcess::CChannelProcess::RunProcess(ALGO_IN_OCR * _segmentIn, std::vecto
 
 	if (!Segment::initImage(_segmentIn, imgDetect))
 	{
-		return 5; //initilize under detection image failed;
+		return 5; //initilize under detected image failed;
 	}
 
 	Segment seg;
 
+	//load the template picture's parameters
 	if(CALI_TMP)
-		seg.loadPara(tempImg->CT_caliedImgObj, tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor, tempImg->CT_chipPosPointVec, tempImg->refAngle);
+		seg.loadPara(tempImg->CT_caliedImgObj, 
+					tempImg->CT_templateKeyPoint,
+					tempImg->CT_TemplateDescriptor,
+					tempImg->CT_chipPosPointVec,
+					tempImg->refAngle);
 	else
-		seg.loadPara(tempImg->CT_imgObj, tempImg->CT_templateKeyPoint, tempImg->CT_TemplateDescriptor, tempImg->CT_chipPosPointVec, tempImg->refAngle);
+		seg.loadPara(tempImg->CT_imgObj,
+					tempImg->CT_templateKeyPoint,
+					tempImg->CT_TemplateDescriptor,
+					tempImg->CT_chipPosPointVec,
+					tempImg->refAngle);
 	
 	if (seg.imgTemplate.empty() || imgDetect.empty())
 	{
-		return 1; //sample picture or test picture is empty
+		return 1; //template picture or under detection picture is empty
 	}
 
 	seg.InitDetect(imgDetect);
 
+	//compute all of characters, rois and objects position parameters according to config file
 	for (int _index_object = 0; _index_object < mptr_Ocr_CFG->nbr_object; _index_object++)//遍历每个目标Object=>chip
 	{
 #pragma region 处理每个目标
+		//the number of roi responding to a object
 		seg.T_numRoi = mptr_Ocr_CFG->tbl_object[_index_object].nbr_roi;
 		seg.T_rois_rectVec.clear();
 
+		//all of the rois's parameters
 		for (int _index_Temp = 0; _index_Temp < mptr_Ocr_CFG->tbl_object[_index_object].nbr_roi; _index_Temp++)//遍历每个模板ROI
 		{
 #pragma region T_rois_rectVec
 
+			//the number of characters of a roi
 			int charNum = mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].nbr_char;
-			std::vector<cv::Rect> rectVec(charNum);
+			std::vector<cv::Rect> charRectVec(charNum);
+
+			//compute the position of  all of the characters
+			cv::Rect charRect;
 			for (int _index_charlist = 0; _index_charlist < mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].nbr_char; _index_charlist++)
 			{
-				cv::Rect rect;
-				rect.x = mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].left;
-				rect.y = mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].top;
-				rect.width = (
+				charRect.x = mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].left;
+				charRect.y = mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].top;
+				charRect.width = (
 					mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].right -
 					mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].left);
-				rect.height = (
+				charRect.height = (
 					mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].bottom -
 					mptr_Ocr_CFG->tbl_object[_index_object].tbl_roi_data[_index_Temp].tbl_char_rect[_index_charlist].top);
 
-				rect.x = rect.x - tempImg->CT_offset_x;
-				rect.y = rect.y - tempImg->CT_offset_y;
+				charRect.x = charRect.x - tempImg->CT_offset_x;
+				charRect.y = charRect.y - tempImg->CT_offset_y;
 
-				if (rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0)
+				if (charRect.x < 0 || charRect.y < 0 || charRect.width <= 0 || charRect.height <= 0)
 				{
 					return 3;
 				}
 
-				rectVec[_index_charlist] = rect;
+				charRectVec[_index_charlist] = charRect;
 			}
-			seg.T_rois_rectVec.push_back(rectVec);
+			seg.T_rois_rectVec.push_back(charRectVec);
 #pragma endregion	
 
 		}
