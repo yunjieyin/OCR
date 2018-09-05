@@ -8,15 +8,15 @@ namespace orb
 	const int EDGE_THRESHOLD = 19;//边缘阈值,靠近边缘阈值以内的像素是不检测特征点的。
 
 	// 灰度质心法计算特征点方向
-	static float IC_Angle(const cv::Mat& image, cv::Point2f pt, const std::vector<int>& u_max)
+	static float Intensity_Centroid_Angle(const cv::Mat& image, cv::Point2f pt, const std::vector<int>& u_max)
 	{
 		int m_01 = 0, m_10 = 0;
 		// 得到中心位置
-		const uchar* center = &image.at<uchar>(cvRound(pt.y), cvRound(pt.x));
+		const uchar* pCenter = &image.at<uchar>(cvRound(pt.y), cvRound(pt.x));
 
 		// 对 v=0 这一行单独计算
 		for (int u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; ++u)
-			m_10 += u * center[u];
+			m_10 += u * pCenter[u];
 
 		// 这边要注意图像的step不一定是图像的宽度
 		int step = (int)image.step1();
@@ -28,7 +28,7 @@ namespace orb
 			int d = u_max[v];
 			for (int u = -d; u <= d; ++u)
 			{
-				int val_plus = center[u + v*step], val_minus = center[u - v*step];
+				int val_plus = pCenter[u + v*step], val_minus = pCenter[u - v*step];
 				v_sum += (val_plus - val_minus);//计算上下的时候是有符号的，所以这边是减
 				m_10 += u * (val_plus + val_minus);//这边加是由于u已经确定好了符号
 			}
@@ -340,62 +340,62 @@ namespace orb
 		-1, -6, 0, -11/*mean (0.127148), correlation (0.547401)*/
 	};
 
-	ORBextractor::ORBextractor(int features_num, float scale_factor, int levels_num,
-		int default_fast_threshold, int min_fast_threshold) :
-		features_num_(features_num), scale_factor_(scale_factor), levels_num_(levels_num),
-		default_fast_threshold_(default_fast_threshold), min_fast_threshold_(min_fast_threshold)
+	ORBextractor::ORBextractor(int numFeatures, float scaleFactor, int numLevels,
+		int defaultFastThreshold, int minFastThreshold) :
+		m_nMaxFeatureNum(numFeatures), m_fScalFactor(scaleFactor), m_nNumLevels(numLevels),
+		m_nDefaultFastThreshold(defaultFastThreshold), m_nMinFastThreshold(minFastThreshold)
 	{
 		// 这边将每层金字塔对应的尺度因子给出
-		vec_scale_factor_.resize(levels_num_);
-		vec_scale_factor_[0] = 1.0f;
-		for (int i = 1; i < levels_num_; i++)
+		m_fScalFactorVec.resize(m_nNumLevels);
+		m_fScalFactorVec[0] = 1.0f;
+		for (int i = 1; i < m_nNumLevels; i++)
 		{
-			vec_scale_factor_[i] = vec_scale_factor_[i - 1] * scale_factor_;
+			m_fScalFactorVec[i] = m_fScalFactorVec[i - 1] * m_fScalFactor;
 		}
 
-		vec_image_pyramid_.resize(levels_num_);
+		m_pyramidImageVec.resize(m_nNumLevels);
 
-		feature_num_per_level_.resize(levels_num_);
-		float factor = 1.0f / scale_factor_;
+		m_numFeatureVec.resize(m_nNumLevels);
+		float fFactor = 1.0f / m_fScalFactor;
 		const float EPSINON = 0.000001;
-		float x = 1 - (float)pow((double)factor, (double)levels_num_);
-		float desired_features_per_scale = features_num_ / levels_num_;
+		float x = 1 - (float)pow((double)fFactor, (double)m_nNumLevels);
+		float nNumFeaturesPerScal = m_nMaxFeatureNum / m_nNumLevels;
 		if (abs(x) > EPSINON)//x不为0的时候执行，防止用户给出的尺度因子为1
 		{
-			desired_features_per_scale = features_num_*(1 - factor) / x;
+			nNumFeaturesPerScal = m_nMaxFeatureNum * (1 - fFactor) / x;
 		}
 
-		int sum_features = 0;
-		for (int level = 0; level < levels_num_ - 1; level++)
+		int nSumFeatures = 0;
+		for (int level = 0; level < m_nNumLevels - 1; level++)
 		{
-			feature_num_per_level_[level] = cvRound(desired_features_per_scale);
-			sum_features += feature_num_per_level_[level];
-			desired_features_per_scale *= factor;
+			m_numFeatureVec[level] = cvRound(nNumFeaturesPerScal);
+			nSumFeatures += m_numFeatureVec[level];
+			nNumFeaturesPerScal *= fFactor;
 		}
-		feature_num_per_level_[levels_num_ - 1] = std::max(features_num_ - sum_features, 0);
+		m_numFeatureVec[m_nNumLevels - 1] = std::max(m_nMaxFeatureNum - nSumFeatures, 0);
 		// 以上，主要目的就是金字塔图像每层检测的特征数进行均匀控制
 
 		// 复制训练的模板
-		const int npoints = 512;
+		const int nNumPoints = 512;
 		const cv::Point* pattern0 = (const cv::Point*)bit_pattern_31_;
-		std::copy(pattern0, pattern0 + npoints, std::back_inserter(pattern_));
+		std::copy(pattern0, pattern0 + nNumPoints, std::back_inserter(m_patternVec));
 
 		//用于计算特征方向时，每个v坐标对应最大的u坐标
-		umax_.resize(HALF_PATCH_SIZE + 1);
+		m_uMaxVec.resize(HALF_PATCH_SIZE + 1);
 		// 将v坐标划分为两部分进行计算，主要为了确保计算特征主方向的时候，x,y方向对称
-		int v, v0, vmax = cvFloor(HALF_PATCH_SIZE * sqrt(2.f) / 2 + 1);
-		int vmin = cvCeil(HALF_PATCH_SIZE * sqrt(2.f) / 2);
+		int v, v0, vMax = cvFloor(HALF_PATCH_SIZE * sqrt(2.f) / 2 + 1);
+		int vMin = cvCeil(HALF_PATCH_SIZE * sqrt(2.f) / 2);
 		// 通过勾股定理计算
 		const double hp2 = HALF_PATCH_SIZE*HALF_PATCH_SIZE;
-		for (v = 0; v <= vmax; ++v)
-			umax_[v] = cvRound(sqrt(hp2 - v * v));
+		for (v = 0; v <= vMax; ++v)
+			m_uMaxVec[v] = cvRound(sqrt(hp2 - v * v));
 
 		// 确保对称，即保证是一个圆
-		for (v = HALF_PATCH_SIZE, v0 = 0; v >= vmin; --v)
+		for (v = HALF_PATCH_SIZE, v0 = 0; v >= vMin; --v)
 		{
-			while (umax_[v0] == umax_[v0 + 1])
+			while (m_uMaxVec[v0] == m_uMaxVec[v0 + 1])
 				++v0;
-			umax_[v] = v0;
+			m_uMaxVec[v] = v0;
 			++v0;
 		}
 	}
@@ -405,273 +405,273 @@ namespace orb
 		for (std::vector<cv::KeyPoint>::iterator keypoint = keypoints.begin(),
 			keypoint_end = keypoints.end(); keypoint != keypoint_end; ++keypoint)
 		{
-			keypoint->angle = IC_Angle(image, keypoint->pt, umax);
+			keypoint->angle = Intensity_Centroid_Angle(image, keypoint->pt, umax);
 		}
 	}
 
-	void ExtractorNode::divideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4)
+	void ExtractorNode::divideNode(ExtractorNode &node1, ExtractorNode &node2, ExtractorNode &node3, ExtractorNode &node4)
 	{
-		const int half_x = ceil(static_cast<float>(UR_.x - UL_.x) / 2);
-		const int half_y = ceil(static_cast<float>(BR_.y - UL_.y) / 2);
+		const int half_x = ceil(static_cast<float>(m_pointUR.x - m_pointUL.x) / 2);
+		const int half_y = ceil(static_cast<float>(m_pointBR.y - m_pointUL.y) / 2);
 
 		//定义节点边界
-		n1.UL_ = UL_;
-		n1.UR_ = cv::Point2i(UL_.x + half_x, UL_.y);
-		n1.BL_ = cv::Point2i(UL_.x, UL_.y + half_y);
-		n1.BR_ = cv::Point2i(UL_.x + half_x, UL_.y + half_y);
-		n1.vec_keys_.reserve(vec_keys_.size());
+		node1.m_pointUL = m_pointUL;
+		node1.m_pointUR = cv::Point2i(m_pointUL.x + half_x, m_pointUL.y);
+		node1.m_pointBL = cv::Point2i(m_pointUL.x, m_pointUL.y + half_y);
+		node1.m_pointBR = cv::Point2i(m_pointUL.x + half_x, m_pointUL.y + half_y);
+		node1.m_keypointsVec.reserve(m_keypointsVec.size());
 
-		n2.UL_ = n1.UR_;
-		n2.UR_ = UR_;
-		n2.BL_ = n1.BR_;
-		n2.BR_ = cv::Point2i(UR_.x, UL_.y + half_y);
-		n2.vec_keys_.reserve(vec_keys_.size());
+		node2.m_pointUL = node1.m_pointUR;
+		node2.m_pointUR = m_pointUR;
+		node2.m_pointBL = node1.m_pointBR;
+		node2.m_pointBR = cv::Point2i(m_pointUR.x, m_pointUL.y + half_y);
+		node2.m_keypointsVec.reserve(m_keypointsVec.size());
 
-		n3.UL_ = n1.BL_;
-		n3.UR_ = n1.BR_;
-		n3.BL_ = BL_;
-		n3.BR_ = cv::Point2i(n1.BR_.x, BL_.y);
-		n3.vec_keys_.reserve(vec_keys_.size());
+		node3.m_pointUL = node1.m_pointBL;
+		node3.m_pointUR = node1.m_pointUR;
+		node3.m_pointBL = m_pointBL;
+		node3.m_pointBR = cv::Point2i(node1.m_pointBR.x, m_pointBL.y);
+		node3.m_keypointsVec.reserve(m_keypointsVec.size());
 
-		n4.UL_ = n3.UR_;
-		n4.UR_ = n2.BR_;
-		n4.BL_ = n3.BR_;
-		n4.BR_ = BR_;
-		n4.vec_keys_.reserve(vec_keys_.size());
+		node4.m_pointUL = node3.m_pointUR;
+		node4.m_pointUR = node2.m_pointBR;
+		node4.m_pointBL = node3.m_pointBR;
+		node4.m_pointBR = m_pointBR;
+		node4.m_keypointsVec.reserve(m_keypointsVec.size());
 
 		//将特征点按象限进行划分
-		for (size_t i = 0; i < vec_keys_.size(); i++)
+		for (size_t i = 0; i < m_keypointsVec.size(); i++)
 		{
-			const cv::KeyPoint &kp = vec_keys_[i];
-			if (kp.pt.x < n1.UR_.x)
+			const cv::KeyPoint &kp = m_keypointsVec[i];
+			if (kp.pt.x < node1.m_pointUR.x)
 			{
-				if (kp.pt.y < n1.BR_.y)
-					n1.vec_keys_.push_back(kp);
+				if (kp.pt.y < node1.m_pointBR.y)
+					node1.m_keypointsVec.push_back(kp);
 				else
-					n3.vec_keys_.push_back(kp);
+					node3.m_keypointsVec.push_back(kp);
 			}
-			else if (kp.pt.y < n1.BR_.y)
-				n2.vec_keys_.push_back(kp);
+			else if (kp.pt.y < node1.m_pointBR.y)
+				node2.m_keypointsVec.push_back(kp);
 			else
-				n4.vec_keys_.push_back(kp);
+				node4.m_keypointsVec.push_back(kp);
 		}
 
-		if (n1.vec_keys_.size() == 1)
-			n1.is_no_more_ = true;
-		if (n2.vec_keys_.size() == 1)
-			n2.is_no_more_ = true;
-		if (n3.vec_keys_.size() == 1)
-			n3.is_no_more_ = true;
-		if (n4.vec_keys_.size() == 1)
-			n4.is_no_more_ = true;
+		if (node1.m_keypointsVec.size() == 1)
+			node1.m_bNoMore = true;
+		if (node2.m_keypointsVec.size() == 1)
+			node2.m_bNoMore = true;
+		if (node3.m_keypointsVec.size() == 1)
+			node3.m_bNoMore = true;
+		if (node4.m_keypointsVec.size() == 1)
+			node4.m_bNoMore = true;
 
 	}
 
-	std::vector<cv::KeyPoint> ORBextractor::distributeQuadTree(const std::vector<cv::KeyPoint>& vec_to_distribute_keys, const int &min_x,
-		const int &max_x, const int &min_y, const int &max_y, const int &feature_num, const int &level)
+	std::vector<cv::KeyPoint> ORBextractor::distributeQuadTree(const std::vector<cv::KeyPoint>& rawKeyPoints,
+		const int &xMin,const int &xMax, const int &yMin, const int &yMax, const int &numFeatures, const int &level)
 	{
 		// 计算初始时有几个节点
-		const int init_node_num = round(static_cast<float>(max_x - min_x) / (max_y - min_y));
+		const int init_node_num = round(static_cast<float>(xMax - xMin) / (yMax - yMin));
 		// 得到节点之间的间隔
-		const float interval_x = static_cast<float>(max_x - min_x) / init_node_num;
+		const float interval_x = static_cast<float>(xMax - xMin) / init_node_num;
 
-		std::vector<ExtractorNode*> init_nodes;
-		init_nodes.resize(init_node_num);
+		std::vector<ExtractorNode*> initNodesVec;
+		initNodesVec.resize(init_node_num);
 		// 划分之后包含的节点
-		std::list<ExtractorNode> list_nodes;
+		std::list<ExtractorNode> listNodesVec;
 		for (int i = 0; i < init_node_num; i++)
 		{
 			ExtractorNode ni;
-			ni.UL_ = cv::Point2i(interval_x*static_cast<float>(i), 0);
-			ni.UR_ = cv::Point2i(interval_x*static_cast<float>(i + 1), 0);
-			ni.BL_ = cv::Point2i(ni.UL_.x, max_y - min_y);
-			ni.BR_ = cv::Point2i(ni.UR_.x, max_y - min_y);
-			ni.vec_keys_.reserve(vec_to_distribute_keys.size());
+			ni.m_pointUL = cv::Point2i(interval_x*static_cast<float>(i), 0);
+			ni.m_pointUR = cv::Point2i(interval_x*static_cast<float>(i + 1), 0);
+			ni.m_pointBL = cv::Point2i(ni.m_pointUL.x, yMax - yMin);
+			ni.m_pointBR = cv::Point2i(ni.m_pointUR.x, yMax - yMin);
+			ni.m_keypointsVec.reserve(rawKeyPoints.size());
 
-			list_nodes.push_back(ni);
-			init_nodes[i] = &list_nodes.back();
+			listNodesVec.push_back(ni);
+			initNodesVec[i] = &listNodesVec.back();
 		}
 
 		//将点分配给子节点
-		for (size_t i = 0; i < vec_to_distribute_keys.size(); i++)
+		for (size_t i = 0; i < rawKeyPoints.size(); i++)
 		{
-			const cv::KeyPoint &kp = vec_to_distribute_keys[i];
-			init_nodes[kp.pt.x / interval_x]->vec_keys_.push_back(kp);
+			const cv::KeyPoint &kp = rawKeyPoints[i];
+			initNodesVec[kp.pt.x / interval_x]->m_keypointsVec.push_back(kp);
 		}
 
-		std::list<ExtractorNode>::iterator lit = list_nodes.begin();
+		std::list<ExtractorNode>::iterator iter = listNodesVec.begin();
 
-		while (lit != list_nodes.end())
+		while (iter != listNodesVec.end())
 		{
 			// 如果只含一个特征点的时候，则不再划分
-			if (lit->vec_keys_.size() == 1)
+			if (iter->m_keypointsVec.size() == 1)
 			{
-				lit->is_no_more_ = true;
-				lit++;
+				iter->m_bNoMore = true;
+				iter++;
 			}
-			else if (lit->vec_keys_.empty())
-				lit = list_nodes.erase(lit);
+			else if (iter->m_keypointsVec.empty())
+				iter = listNodesVec.erase(iter);
 			else
-				lit++;
+				iter++;
 		}
 
-		bool is_finish = false;
+		bool bFinish = false;
 
 		int iteration = 0;
 
-		std::vector<std::pair<int, ExtractorNode*> > keys_size_and_node;//节点及对应包含的特征数
-		keys_size_and_node.reserve(list_nodes.size() * 4);
+		std::vector<std::pair<int, ExtractorNode*> > numberAndNodes;//节点及对应包含的特征数
+		numberAndNodes.reserve(listNodesVec.size() * 4);
 
-		while (!is_finish)
+		while (!bFinish)
 		{
 			iteration++;
 			// 初始节点个数，用于判断是否节点再一次进行了划分
-			int prev_size = list_nodes.size();
+			int nPreSize = listNodesVec.size();
 
-			lit = list_nodes.begin();
+			iter = listNodesVec.begin();
 			// 表示节点分解次数
-			int to_expand_num = 0;
+			int nExpandNumber = 0;
 
-			keys_size_and_node.clear();
+			numberAndNodes.clear();
 
-			while (lit != list_nodes.end())
+			while (iter != listNodesVec.end())
 			{
-				if (lit->is_no_more_)
+				if (iter->m_bNoMore)
 				{
 					// 表面只有一个特征点，则不再划分
-					lit++;
+					iter++;
 					continue;
 				}
 				else
 				{
 					// 如果超过一个特征点，则继续划分
 					ExtractorNode n1, n2, n3, n4;
-					lit->divideNode(n1, n2, n3, n4);
+					iter->divideNode(n1, n2, n3, n4);
 
 					// 对划分之后的节点进行判断，是否含有特征点，含有特征点则添加节点
-					if (n1.vec_keys_.size() > 0)
+					if (n1.m_keypointsVec.size() > 0)
 					{
-						list_nodes.push_front(n1);
-						if (n1.vec_keys_.size() > 1)
+						listNodesVec.push_front(n1);
+						if (n1.m_keypointsVec.size() > 1)
 						{
-							to_expand_num++;
-							keys_size_and_node.push_back(std::make_pair(n1.vec_keys_.size(), &list_nodes.front()));
-							list_nodes.front().node_iter_ = list_nodes.begin();
+							nExpandNumber++;
+							numberAndNodes.push_back(std::make_pair(n1.m_keypointsVec.size(), &listNodesVec.front()));
+							listNodesVec.front().m_iterNode = listNodesVec.begin();
 						}
 					}
-					if (n2.vec_keys_.size() > 0)
+					if (n2.m_keypointsVec.size() > 0)
 					{
-						list_nodes.push_front(n2);
-						if (n2.vec_keys_.size() > 1)
+						listNodesVec.push_front(n2);
+						if (n2.m_keypointsVec.size() > 1)
 						{
-							to_expand_num++;
-							keys_size_and_node.push_back(std::make_pair(n2.vec_keys_.size(), &list_nodes.front()));
-							list_nodes.front().node_iter_ = list_nodes.begin();
+							nExpandNumber++;
+							numberAndNodes.push_back(std::make_pair(n2.m_keypointsVec.size(), &listNodesVec.front()));
+							listNodesVec.front().m_iterNode = listNodesVec.begin();
 						}
 					}
-					if (n3.vec_keys_.size() > 0)
+					if (n3.m_keypointsVec.size() > 0)
 					{
-						list_nodes.push_front(n3);
-						if (n3.vec_keys_.size() > 1)
+						listNodesVec.push_front(n3);
+						if (n3.m_keypointsVec.size() > 1)
 						{
-							to_expand_num++;
-							keys_size_and_node.push_back(std::make_pair(n3.vec_keys_.size(), &list_nodes.front()));
-							list_nodes.front().node_iter_ = list_nodes.begin();
+							nExpandNumber++;
+							numberAndNodes.push_back(std::make_pair(n3.m_keypointsVec.size(), &listNodesVec.front()));
+							listNodesVec.front().m_iterNode = listNodesVec.begin();
 						}
 					}
-					if (n4.vec_keys_.size() > 0)
+					if (n4.m_keypointsVec.size() > 0)
 					{
-						list_nodes.push_front(n4);
-						if (n4.vec_keys_.size() > 1)
+						listNodesVec.push_front(n4);
+						if (n4.m_keypointsVec.size() > 1)
 						{
-							to_expand_num++;
-							keys_size_and_node.push_back(std::make_pair(n4.vec_keys_.size(), &list_nodes.front()));
-							list_nodes.front().node_iter_ = list_nodes.begin();
+							nExpandNumber++;
+							numberAndNodes.push_back(std::make_pair(n4.m_keypointsVec.size(), &listNodesVec.front()));
+							listNodesVec.front().m_iterNode = listNodesVec.begin();
 						}
 					}
 
-					lit = list_nodes.erase(lit);
+					iter = listNodesVec.erase(iter);
 					continue;
 				}
 			}
 
 			// 当节点个数大于需分配的特征数或者所有的节点只有一个特征点（节点不能划分）的时候，则结束。
-			if ((int)list_nodes.size() >= feature_num || (int)list_nodes.size() == prev_size)
+			if ((int)listNodesVec.size() >= numFeatures || (int)listNodesVec.size() == nPreSize)
 			{
-				is_finish = true;
+				bFinish = true;
 			}
-			else if (((int)list_nodes.size() + to_expand_num * 3) > feature_num)//节点展开次数乘以3用于表明下一次的节点分解可能超过特征数，即为最后一次分解
+			else if (((int)listNodesVec.size() + nExpandNumber * 3) > numFeatures)//节点展开次数乘以3用于表明下一次的节点分解可能超过特征数，即为最后一次分解
 			{
-				while (!is_finish)
+				while (!bFinish)
 				{
-					prev_size = list_nodes.size();
+					nPreSize = listNodesVec.size();
 
-					std::vector<std::pair<int, ExtractorNode*> > prev_size_and_node = keys_size_and_node;
-					keys_size_and_node.clear();
+					std::vector<std::pair<int, ExtractorNode*> > previousNumberAndNods = numberAndNodes;
+					numberAndNodes.clear();
 
-					sort(prev_size_and_node.begin(), prev_size_and_node.end());
-					for (int j = prev_size_and_node.size() - 1; j >= 0; j--)
+					sort(previousNumberAndNods.begin(), previousNumberAndNods.end());
+					for (int j = previousNumberAndNods.size() - 1; j >= 0; j--)
 					{
 						ExtractorNode n1, n2, n3, n4;
-						prev_size_and_node[j].second->divideNode(n1, n2, n3, n4);
+						previousNumberAndNods[j].second->divideNode(n1, n2, n3, n4);
 
 						// 划分之后进一步的判断
-						if (n1.vec_keys_.size() > 0)
+						if (n1.m_keypointsVec.size() > 0)
 						{
-							list_nodes.push_front(n1);
-							if (n1.vec_keys_.size() > 1)
+							listNodesVec.push_front(n1);
+							if (n1.m_keypointsVec.size() > 1)
 							{
-								keys_size_and_node.push_back(std::make_pair(n1.vec_keys_.size(), &list_nodes.front()));
-								list_nodes.front().node_iter_ = list_nodes.begin();
+								numberAndNodes.push_back(std::make_pair(n1.m_keypointsVec.size(), &listNodesVec.front()));
+								listNodesVec.front().m_iterNode = listNodesVec.begin();
 							}
 						}
-						if (n2.vec_keys_.size() > 0)
+						if (n2.m_keypointsVec.size() > 0)
 						{
-							list_nodes.push_front(n2);
-							if (n2.vec_keys_.size() > 1)
+							listNodesVec.push_front(n2);
+							if (n2.m_keypointsVec.size() > 1)
 							{
-								keys_size_and_node.push_back(std::make_pair(n2.vec_keys_.size(), &list_nodes.front()));
-								list_nodes.front().node_iter_ = list_nodes.begin();
+								numberAndNodes.push_back(std::make_pair(n2.m_keypointsVec.size(), &listNodesVec.front()));
+								listNodesVec.front().m_iterNode = listNodesVec.begin();
 							}
 						}
-						if (n3.vec_keys_.size() > 0)
+						if (n3.m_keypointsVec.size() > 0)
 						{
-							list_nodes.push_front(n3);
-							if (n3.vec_keys_.size() > 1)
+							listNodesVec.push_front(n3);
+							if (n3.m_keypointsVec.size() > 1)
 							{
-								keys_size_and_node.push_back(std::make_pair(n3.vec_keys_.size(), &list_nodes.front()));
-								list_nodes.front().node_iter_ = list_nodes.begin();
+								numberAndNodes.push_back(std::make_pair(n3.m_keypointsVec.size(), &listNodesVec.front()));
+								listNodesVec.front().m_iterNode = listNodesVec.begin();
 							}
 						}
-						if (n4.vec_keys_.size() > 0)
+						if (n4.m_keypointsVec.size() > 0)
 						{
-							list_nodes.push_front(n4);
-							if (n4.vec_keys_.size() > 1)
+							listNodesVec.push_front(n4);
+							if (n4.m_keypointsVec.size() > 1)
 							{
-								keys_size_and_node.push_back(std::make_pair(n4.vec_keys_.size(), &list_nodes.front()));
-								list_nodes.front().node_iter_ = list_nodes.begin();
+								numberAndNodes.push_back(std::make_pair(n4.m_keypointsVec.size(), &listNodesVec.front()));
+								listNodesVec.front().m_iterNode = listNodesVec.begin();
 							}
 						}
 
-						list_nodes.erase(prev_size_and_node[j].second->node_iter_);
+						listNodesVec.erase(previousNumberAndNods[j].second->m_iterNode);
 
-						if ((int)list_nodes.size() >= feature_num)
+						if ((int)listNodesVec.size() >= numFeatures)
 							break;
 					}
 
-					if ((int)list_nodes.size() >= feature_num || (int)list_nodes.size() == prev_size)
-						is_finish = true;
+					if ((int)listNodesVec.size() >= numFeatures || (int)listNodesVec.size() == nPreSize)
+						bFinish = true;
 
 				}
 			}
 		}
 
 		// 保留每个节点下最好的特征点
-		std::vector<cv::KeyPoint> result_keys;
-		result_keys.reserve(features_num_);
-		for (std::list<ExtractorNode>::iterator lit = list_nodes.begin(); lit != list_nodes.end(); lit++)
+		std::vector<cv::KeyPoint> bestKeypointsVec;
+		bestKeypointsVec.reserve(m_nMaxFeatureNum);
+		for (std::list<ExtractorNode>::iterator lit = listNodesVec.begin(); lit != listNodesVec.end(); lit++)
 		{
-			std::vector<cv::KeyPoint> &node_keys = lit->vec_keys_;
+			std::vector<cv::KeyPoint> &node_keys = lit->m_keypointsVec;
 			cv::KeyPoint* keypoint = &node_keys[0];
 			float max_response = keypoint->response;
 
@@ -684,281 +684,102 @@ namespace orb
 				}
 			}
 
-			result_keys.push_back(*keypoint);
+			bestKeypointsVec.push_back(*keypoint);
 		}
 
-		return result_keys;
+		return bestKeypointsVec;
 	}
 
-	void ORBextractor::computeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint> >& all_keypoints)
+	void ORBextractor::computeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint> >& allkeypoints)
 	{
-		all_keypoints.resize(levels_num_);
+		allkeypoints.resize(m_nNumLevels);
 		// 设置格子大小
-		const float border_width = 30;
+		const float fBorderWidth = 30;
 
-		for (int level = 0; level < levels_num_; ++level)
+		for (int level = 0; level < m_nNumLevels; ++level)
 		{
 			// 得到每一层图像进行特征检测区域上下两个坐标
-			const int min_border_x = EDGE_THRESHOLD - 3;
-			const int min_border_y = min_border_x;
-			const int max_border_x = vec_image_pyramid_[level].cols - EDGE_THRESHOLD + 3;
-			const int max_border_y = vec_image_pyramid_[level].rows - EDGE_THRESHOLD + 3;
+			const int minBorder_x = EDGE_THRESHOLD - 3;
+			const int minBorder_y = minBorder_x;
+			const int maxBorder_x = m_pyramidImageVec[level].cols - EDGE_THRESHOLD + 3;
+			const int maxBorder_y = m_pyramidImageVec[level].rows - EDGE_THRESHOLD + 3;
 			// 用于分配的关键点
-			std::vector<cv::KeyPoint> vec_to_distribute_keys;
-			vec_to_distribute_keys.reserve(features_num_ * 10);
+			std::vector<cv::KeyPoint> toDistributeKeysVec;
+			toDistributeKeysVec.reserve(m_nMaxFeatureNum * 10);
 
-			const float width = (max_border_x - min_border_x);
-			const float height = (max_border_y - min_border_y);
+			const float width = (maxBorder_x - minBorder_x);
+			const float height = (maxBorder_y - minBorder_y);
 			// 将待检测区域划分为格子的行列数
-			const int cols = width / border_width;
-			const int rows = height / border_width;
+			const int cols = width / fBorderWidth;
+			const int rows = height / fBorderWidth;
 			// 重新计算每个格子的大小
 			const int width_cell = ceil(width / cols);
 			const int height_cell = ceil(height / rows);
 			// 在每个格子内进行fast特征检测
 			for (int i = 0; i < rows; i++)
 			{
-				const float ini_y = min_border_y + i*height_cell;
+				const float ini_y = minBorder_y + i*height_cell;
 				float max_y = ini_y + height_cell + 6;
 
-				if (ini_y >= max_border_y - 3)
+				if (ini_y >= maxBorder_y - 3)
 					continue;
-				if (max_y > max_border_y)
-					max_y = max_border_y;
+				if (max_y > maxBorder_y)
+					max_y = maxBorder_y;
 
 				for (int j = 0; j < cols; j++)
 				{
-					const float ini_x = min_border_x + j*width_cell;
+					const float ini_x = minBorder_x + j*width_cell;
 					float max_x = ini_x + width_cell + 6;
-					if (ini_x >= max_border_x - 6)
+					if (ini_x >= maxBorder_x - 6)
 						continue;
-					if (max_x > max_border_x)
-						max_x = max_border_x;
+					if (max_x > maxBorder_x)
+						max_x = maxBorder_x;
 
-					std::vector<cv::KeyPoint> vec_keys_cell;
-					cv::FAST(vec_image_pyramid_[level].rowRange(ini_y, max_y).colRange(ini_x, max_x),
-						vec_keys_cell, default_fast_threshold_, true);
+					std::vector<cv::KeyPoint> keysVec;
+					cv::FAST(m_pyramidImageVec[level].rowRange(ini_y, max_y).colRange(ini_x, max_x),
+						keysVec, m_nDefaultFastThreshold, true);
 					// 如果检测到的fast特征为空，则降低阈值再进行检测
-					if (vec_keys_cell.empty())
+					if (keysVec.empty())
 					{
-						cv::FAST(vec_image_pyramid_[level].rowRange(ini_y, max_y).colRange(ini_x, max_x),
-							vec_keys_cell, min_fast_threshold_, true);
+						cv::FAST(m_pyramidImageVec[level].rowRange(ini_y, max_y).colRange(ini_x, max_x),
+							keysVec, m_nMinFastThreshold, true);
 					}
 					// 计算实际特征点的位置
-					if (!vec_keys_cell.empty())
+					if (!keysVec.empty())
 					{
-						for (std::vector<cv::KeyPoint>::iterator vit = vec_keys_cell.begin(); vit != vec_keys_cell.end(); vit++)
+						for (std::vector<cv::KeyPoint>::iterator vit = keysVec.begin(); vit != keysVec.end(); vit++)
 						{
 							(*vit).pt.x += j*width_cell;
 							(*vit).pt.y += i*height_cell;
-							vec_to_distribute_keys.push_back(*vit);
+							toDistributeKeysVec.push_back(*vit);
 						}
 					}
 
 				}
 			}
 
-			std::vector<cv::KeyPoint> & keypoints = all_keypoints[level];
-			keypoints.reserve(features_num_);
+			std::vector<cv::KeyPoint> & keypoints = allkeypoints[level];
+			keypoints.reserve(m_nMaxFeatureNum);
 			// 将特征点进行四叉树划分
-			keypoints = distributeQuadTree(vec_to_distribute_keys, min_border_x, max_border_x,
-				min_border_y, max_border_y, feature_num_per_level_[level], level);
+			keypoints = distributeQuadTree(toDistributeKeysVec, minBorder_x, maxBorder_x,
+				minBorder_y, maxBorder_y, m_numFeatureVec[level], level);
 
-			const int scaled_patch_size = PATCH_SIZE*vec_scale_factor_[level];
+			const int scaled_patch_size = PATCH_SIZE * m_fScalFactorVec[level];
 
 			// 换算特征点真实位置（添加边界值），添加特征点的尺度信息
 			const int nkps = keypoints.size();
 			for (int i = 0; i < nkps; i++)
 			{
-				keypoints[i].pt.x += min_border_x;
-				keypoints[i].pt.y += min_border_y;
+				keypoints[i].pt.x += minBorder_x;
+				keypoints[i].pt.y += minBorder_y;
 				keypoints[i].octave = level;
 				keypoints[i].size = scaled_patch_size;
 			}
 		}
 
 		// 计算特征点的方向
-		for (int level = 0; level < levels_num_; ++level)
-			computeOrientation(vec_image_pyramid_[level], all_keypoints[level], umax_);
-	}
-
-	void ORBextractor::computeKeyPointsOld(std::vector<std::vector<cv::KeyPoint> > &all_keypoints)
-	{
-		all_keypoints.resize(levels_num_);
-
-		float image_ratio = (float)vec_image_pyramid_[0].cols / vec_image_pyramid_[0].rows;
-
-		for (int level = 0; level < levels_num_; ++level)
-		{
-			// 每层待检测的特征数
-			const int desired_features = feature_num_per_level_[level];
-			// 根据每层待检测特征点的个数确定划分格子的行列数
-			const int level_cols = sqrt((float)desired_features / (5 * image_ratio));
-			const int level_rows = image_ratio*level_cols;
-
-			const int min_border_x = EDGE_THRESHOLD;
-			const int min_border_y = min_border_x;
-			const int max_border_x = vec_image_pyramid_[level].cols - EDGE_THRESHOLD;
-			const int max_border_y = vec_image_pyramid_[level].rows - EDGE_THRESHOLD;
-
-			const int border_width = max_border_x - min_border_x;
-			const int border_height = max_border_y - min_border_y;
-			// 得到每个格子的宽度和高度
-			const int cell_width = ceil((float)border_width / level_cols);
-			const int cell_height = ceil((float)border_height / level_rows);
-			// 分配的格子的数目
-			const int cells_num = level_rows*level_cols;
-			// 得到每个格子需检测的特征数
-			const int features_per_cell = ceil((float)desired_features / cells_num);
-			// 对应的每个格子的特征
-			std::vector<std::vector<std::vector<cv::KeyPoint> > > cell_keypoints(level_rows, std::vector<std::vector<cv::KeyPoint> >(level_cols));
-			// 用于存储每个格子保留的特征数
-			std::vector<std::vector<int> > to_retain_num(level_rows, std::vector<int>(level_cols, 0));
-			// 用于存储实际每个格子检测到的特征数
-			std::vector<std::vector<int> > total_num(level_rows, std::vector<int>(level_cols, 0));
-			// 用于标识特征数是否小于需求数
-			std::vector<std::vector<bool> > is_no_more(level_rows, std::vector<bool>(level_cols, false));
-			// 用于保存每次运算的时候下一次的像素坐标值
-			std::vector<int> ini_x_col(level_cols);
-			std::vector<int> ini_y_row(level_rows);
-			// 特征数不够的格子的个数
-			int no_more_num = 0;
-			// 特征缺少的个数
-			int to_distribute_num = 0;
-
-			// 加6是确保格子中的每个点都被检测到，默认opencv中FAST特征检测是9-16的，半径为3
-			float max_y = cell_height + 6;
-
-			for (int i = 0; i < level_rows; i++)
-			{
-				const float ini_y = min_border_y + i*cell_height - 3;
-				ini_y_row[i] = ini_y;
-
-				if (i == level_rows - 1)
-				{
-					max_y = max_border_y + 3 - ini_y;
-					if (max_y <= 0)
-						continue;
-				}
-
-				float max_x = cell_width + 6;
-
-				for (int j = 0; j < level_cols; j++)
-				{
-					float ini_x;
-
-					if (i == 0)
-					{
-						ini_x = min_border_x + j*cell_width - 3;
-						ini_x_col[j] = ini_x;
-					}
-					else
-					{
-						ini_x = ini_x_col[j];
-					}
-
-					if (j == level_cols - 1)
-					{
-						max_x = max_border_x + 3 - ini_x;
-						if (max_x <= 0)
-							continue;
-					}
-					// 对每个格子进行特征检测
-					cv::Mat cell_image = vec_image_pyramid_[level].rowRange(ini_y, ini_y + max_y).colRange(ini_x, ini_x + max_x);
-
-					cell_keypoints[i][j].reserve(features_per_cell * 5);
-
-					cv::FAST(cell_image, cell_keypoints[i][j], default_fast_threshold_, true);
-					// 如果特征个数较少，则降低阈值再一次检测
-					if (cell_keypoints[i][j].size() <= 3)
-					{
-						cell_keypoints[i][j].clear();
-						cv::FAST(cell_image, cell_keypoints[i][j], min_fast_threshold_, true);
-					}
-
-					const int keypoint_num = cell_keypoints[i][j].size();
-					total_num[i][j] = keypoint_num;
-
-					if (keypoint_num > features_per_cell)
-					{
-						to_retain_num[i][j] = features_per_cell;
-						is_no_more[i][j] = false;
-					}
-					else
-					{
-						to_retain_num[i][j] = keypoint_num;
-						to_distribute_num += features_per_cell - keypoint_num;
-						is_no_more[i][j] = true;
-						no_more_num++;
-					}
-
-				}
-			}
-			// 主要目的对特征再一次分配，确保特征数
-			while (to_distribute_num > 0 && no_more_num < cells_num)
-			{
-				// 确定新的格子中的特征数
-				int new_features_cell = features_per_cell + ceil((float)to_distribute_num / (cells_num - no_more_num));
-				to_distribute_num = 0;
-
-				for (int i = 0; i < level_rows; i++)
-				{
-					for (int j = 0; j<level_cols; j++)
-					{
-						if (!is_no_more[i][j])
-						{
-							if (total_num[i][j]>new_features_cell)
-							{
-								to_retain_num[i][j] = new_features_cell;
-								is_no_more[i][j] = false;
-							}
-							else
-							{
-								to_retain_num[i][j] = total_num[i][j];
-								to_distribute_num += new_features_cell - total_num[i][j];
-								is_no_more[i][j] = true;
-								no_more_num++;
-							}
-						}
-					}
-				}
-			}
-
-			std::vector<cv::KeyPoint> & keypoints = all_keypoints[level];
-			keypoints.reserve(desired_features * 2);
-
-			const int scaled_patch_size = PATCH_SIZE*vec_scale_factor_[level];
-			// 换算坐标，确定特征点，进行保存
-			for (int i = 0; i < level_rows; i++)
-			{
-				for (int j = 0; j<level_cols; j++)
-				{
-					std::vector<cv::KeyPoint> &keys_cell = cell_keypoints[i][j];
-					cv::KeyPointsFilter::retainBest(keys_cell, to_retain_num[i][j]);
-					if ((int)keys_cell.size()>to_retain_num[i][j])
-						keys_cell.resize(to_retain_num[i][j]);
-
-					for (size_t k = 0, kend = keys_cell.size(); k < kend; k++)
-					{
-						keys_cell[k].pt.x += ini_x_col[j];
-						keys_cell[k].pt.y += ini_y_row[i];
-						keys_cell[k].octave = level;
-						keys_cell[k].size = scaled_patch_size;
-						keypoints.push_back(keys_cell[k]);
-					}
-				}
-			}
-
-			if ((int)keypoints.size() > desired_features)
-			{
-				cv::KeyPointsFilter::retainBest(keypoints, desired_features);
-				keypoints.resize(desired_features);
-			}
-		}
-
-		// 计算方向
-		for (int level = 0; level < levels_num_; ++level)
-			computeOrientation(vec_image_pyramid_[level], all_keypoints[level], umax_);
+		for (int level = 0; level < m_nNumLevels; ++level)
+			computeOrientation(m_pyramidImageVec[level], allkeypoints[level], m_uMaxVec);
 	}
 
 
@@ -992,7 +813,7 @@ namespace orb
 		cv::Mat descriptors;
 
 		int keypoints_num = 0;
-		for (int level = 0; level < levels_num_; ++level)
+		for (int level = 0; level < m_nNumLevels; ++level)
 			keypoints_num += (int)all_keypoints[level].size();
 		if (keypoints_num == 0)
 			descriptors_array.release();
@@ -1006,28 +827,28 @@ namespace orb
 		output_keypoints.reserve(keypoints_num);
 
 		int offset = 0;//存储描述子的偏移量，用于分割不同尺度层
-		for (int level = 0; level < levels_num_; ++level)
+		for (int level = 0; level < m_nNumLevels; ++level)
 		{
 			std::vector<cv::KeyPoint>& keypoints = all_keypoints[level];
-			int keypoint_num_level = (int)keypoints.size();//当前尺度下图像特征点的数目
+			int numKeypointsLevel = (int)keypoints.size();//当前尺度下图像特征点的数目
 
-			if (keypoint_num_level == 0)
+			if (numKeypointsLevel == 0)
 				continue;
 
 			// 处理当前尺度下的图像
-			cv::Mat working_mat = vec_image_pyramid_[level].clone();
+			cv::Mat working_mat = m_pyramidImageVec[level].clone();
 			GaussianBlur(working_mat, working_mat, cv::Size(7, 7), 2, 2, cv::BORDER_REFLECT_101);
 
 			// 计算描述子
-			cv::Mat desc = descriptors.rowRange(offset, offset + keypoint_num_level);
-			computeDescriptors(working_mat, keypoints, desc, pattern_);
+			cv::Mat desc = descriptors.rowRange(offset, offset + numKeypointsLevel);
+			computeDescriptors(working_mat, keypoints, desc, m_patternVec);
 
-			offset += keypoint_num_level;
+			offset += numKeypointsLevel;
 
 			// 特征点坐标进行尺度处理，换算到当前图像中
 			if (level != 0)
 			{
-				float scale = vec_scale_factor_[level]; //getScale(level, firstLevel, scale_factor_);
+				float scale = m_fScalFactorVec[level]; //getScale(level, firstLevel, scale_factor_);
 				for (std::vector<cv::KeyPoint>::iterator keypoint = keypoints.begin(),
 					keypoint_end = keypoints.end(); keypoint != keypoint_end; ++keypoint)
 					keypoint->pt *= scale;
@@ -1039,18 +860,18 @@ namespace orb
 
 	void ORBextractor::computePyramid(cv::Mat image)
 	{
-		for (int level = 0; level < levels_num_; ++level)
+		for (int level = 0; level < m_nNumLevels; ++level)
 		{
-			float scale = 1.0f / vec_scale_factor_[level];
-			cv::Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
+			float scale = 1.0f / m_fScalFactorVec[level];
+			cv::Size sz(cvRound((float)image.cols * scale), cvRound((float)image.rows * scale));
 
 			if (level != 0)
 			{
-				resize(vec_image_pyramid_[level - 1], vec_image_pyramid_[level], sz, 0, 0, cv::INTER_LINEAR);
+				resize(m_pyramidImageVec[level - 1], m_pyramidImageVec[level], sz, 0, 0, cv::INTER_LINEAR);
 			}
 			else
 			{
-				vec_image_pyramid_[level] = image;
+				m_pyramidImageVec[level] = image;
 			}
 		}
 

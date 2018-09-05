@@ -18,25 +18,25 @@ namespace orb
 	class  ExtractorNode
 	{
 	public:
-		ExtractorNode() :is_no_more_(false){}
+		ExtractorNode() :m_bNoMore(false){}
 
 		/** \brief 划分四叉树
 		*/
-		void divideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4);
+		void divideNode(ExtractorNode &node1, ExtractorNode &node2, ExtractorNode &node3, ExtractorNode &node4);
 
 	public:
-		std::vector<cv::KeyPoint> vec_keys_;
-		cv::Point2i UL_, UR_, BL_, BR_;
-		std::list<ExtractorNode>::iterator node_iter_;
-		bool is_no_more_;
+		std::vector<cv::KeyPoint> m_keypointsVec;
+		cv::Point2i m_pointUL, m_pointUR, m_pointBL, m_pointBR;
+		std::list<ExtractorNode>::iterator m_iterNode;
+		bool m_bNoMore;
 	};
 
 	class  ORBextractor
 	{
 	public:
 
-		ORBextractor(int features_num = 1000, float scale_factor = 1.2f, int levels_num = 4,
-			int default_fast_threshold = 20, int min_fast_threshold = 7);
+		ORBextractor(int numFeatures = 1000, float scaleFactor = 1.2f, int numLevels = 4,
+			int defaultFastThreshold = 20, int minFastThreshold = 7);
 
 		~ORBextractor(){}
 
@@ -51,19 +51,19 @@ namespace orb
 		*/
 		inline int getLevels()
 		{
-			return levels_num_;
+			return m_nMaxFeatureNum;
 		}
 		/** \brief 得到金字塔图像之间的尺度参数
 		*/
 		inline float getScaleFactor()
 		{
-			return scale_factor_;
+			return m_fScalFactor;
 		}
 		/** \brief 得到金字塔图像每层的尺度因子
 		*/
 		inline std::vector<float> getScaleFactors()
 		{
-			return vec_scale_factor_;
+			return m_fScalFactorVec;
 		}
 
 	protected:
@@ -72,31 +72,29 @@ namespace orb
 		void computePyramid(cv::Mat image);
 		/** \brief 通过四叉树的方式计算特征点
 		*/
-		void computeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint> >& all_keypoints);
+		void computeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint> >& allkeypoints);
 		/** \brief 通过四叉树的方式分配特征点
 		*/
-		std::vector<cv::KeyPoint> distributeQuadTree(const std::vector<cv::KeyPoint>& vec_to_distribute_keys, const int &min_x,
-			const int &max_x, const int &min_y, const int &max_y, const int &feature_num, const int &level);
-
-		void computeKeyPointsOld(std::vector<std::vector<cv::KeyPoint> >& all_keypoints);
+		std::vector<cv::KeyPoint> distributeQuadTree(const std::vector<cv::KeyPoint>& rawKeyPoints,
+			const int &xMin, const int &xMax, const int &yMin, const int &yMax, const int &numFeatures, const int &level);
 
 	public:
-		std::vector<cv::Mat> vec_image_pyramid_;//!<图像金字塔
+		std::vector<cv::Mat> m_pyramidImageVec;//图像金字塔
 
 	protected:
-		std::vector<cv::Point> pattern_;//!<用于存放训练的模板
+		std::vector<cv::Point> m_patternVec;//用于存放训练的模板
 
-		int features_num_;//!<最多提取的特征点的数量
-		int levels_num_;//!<高斯金字塔的层数
-		float scale_factor_;//!<金字塔图像之间的尺度参数
-		std::vector<float> vec_scale_factor_;//!<用于存储每层的尺度因子
+		int m_nMaxFeatureNum;//最多提取的特征点的数量
+		int m_nNumLevels;//高斯金字塔的层数
+		float m_fScalFactor;//金字塔图像之间的尺度参数
+		std::vector<float> m_fScalFactorVec;//用于存储每层的尺度因子
 			
-		int default_fast_threshold_;//!<默认设置fast角点阈值20
-		int min_fast_threshold_;//!<设置fast角点阈值为9
+		int m_nDefaultFastThreshold;//默认设置fast角点阈值20
+		int m_nMinFastThreshold;//设置fast角点阈值为9
 
-		std::vector<int> feature_num_per_level_;//!<每层特征的个数
+		std::vector<int> m_numFeatureVec;//每层特征的个数
 
-		std::vector<int> umax_;//!< 用于存储计算特征方向时，图像每个v坐标对应最大的u坐标
+		std::vector<int> m_uMaxVec;// 用于存储计算特征方向时，图像每个v坐标对应最大的u坐标
 			
 	};
 }
