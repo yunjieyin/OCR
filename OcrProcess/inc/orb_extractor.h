@@ -25,8 +25,13 @@ namespace orb
 		void divideNode(ExtractorNode &node1, ExtractorNode &node2, ExtractorNode &node3, ExtractorNode &node4);
 
 	public:
+<<<<<<< HEAD
 		std::vector<cv::KeyPoint> m_keypointsVec;
 		cv::Point2i m_pointUL, m_pointUR, m_pointBL, m_pointBR;
+=======
+		std::vector<cv::KeyPoint> m_keypointsVec;//vec_keys_;
+		cv::Point2i m_pointUL, m_pointUR, m_pointBL, m_pointBR;//UL_, UR_, BL_, BR_;
+>>>>>>> 6a1e6a80031c1bfd5efd4a43bb1a6e047a993a0e
 		std::list<ExtractorNode>::iterator m_iterNode;
 		bool m_bNoMore;
 	};
@@ -77,6 +82,11 @@ namespace orb
 		*/
 		std::vector<cv::KeyPoint> distributeQuadTree(const std::vector<cv::KeyPoint>& rawKeyPoints,
 			const int &xMin, const int &xMax, const int &yMin, const int &yMax, const int &numFeatures, const int &level);
+<<<<<<< HEAD
+=======
+
+		//void computeKeyPointsOld(std::vector<std::vector<cv::KeyPoint> >& all_keypoints);
+>>>>>>> 6a1e6a80031c1bfd5efd4a43bb1a6e047a993a0e
 
 	public:
 		std::vector<cv::Mat> m_pyramidImageVec;//图像金字塔

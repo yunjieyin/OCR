@@ -360,7 +360,11 @@ namespace orb
 		const float EPSINON = 0.000001;
 		float x = 1 - (float)pow((double)fFactor, (double)m_nNumLevels);
 		float nNumFeaturesPerScal = m_nMaxFeatureNum / m_nNumLevels;
+<<<<<<< HEAD
 		if (abs(x) > EPSINON)//x不为0的时候执行，防止尺度因子为1
+=======
+		if (abs(x) > EPSINON)//x不为0的时候执行，防止用户给出的尺度因子为1
+>>>>>>> 6a1e6a80031c1bfd5efd4a43bb1a6e047a993a0e
 		{
 			nNumFeaturesPerScal = m_nMaxFeatureNum * (1 - fFactor) / x;
 		}
