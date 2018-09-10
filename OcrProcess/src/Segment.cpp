@@ -17,24 +17,24 @@ Segment::~Segment()
 
 void Segment::clean()
 {
-	imgDetect.release();
-	refineMat.release();
-	M.release();
-	roiImgBlur.release();
-	roiImgGray.release();
-	roiImgThresh.release();
-	templateGrayImg.release();
-	detectGrayImg.release();
-	detectDescriptor.release();
-	T_numRoi = 0;
-	D_rois_rectVec.clear();
-	D_chipPosPointVec.clear();
-	D_roisPosRectVec.clear();
-	matches.clear();
-	detectKeyPoint.clear();
-	D_rois_pointVec.clear();
-	roiBinaryImgVec.clear();
-	roisOffsetPosVec.clear();
+	m_imgDetect.release();
+	m_refineMat.release();
+	m_M.release();
+	m_roiImgBlur.release();
+	m_roiImgGray.release();
+	m_roiImgThresh.release();
+	m_templateGrayImg.release();
+	m_detectGrayImg.release();
+	m_detectDescriptor.release();
+	m_TnumRoi = 0;
+	m_Drois_rectVec.clear();
+	m_DchipPosPointVec.clear();
+	m_DroisPosRectVec.clear();
+	m_matches.clear();
+	m_detectKeyPoint.clear();
+	m_Drois_pointVec.clear();
+	m_roiBinaryImgVec.clear();
+	m_roisOffsetPosVec.clear();
 }
 
 void Segment::loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
@@ -50,48 +50,48 @@ void Segment::loadPara(cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
 	* changed date :
 	* user         :
 	*********************************************************************/
-	imgTemplate = img;
-	templateKeyPoint = keypoints;
-	TemplateDescriptor = descriptor;
-	T_chipPosPointVec = chipPos;
-	D_chipNum = 1;
+	m_imgTemplate = img;
+	m_templateKeyPoint = keypoints;
+	m_templateDescriptor = descriptor;
+	m_TchipPosPointVec = chipPos;
+	m_DchipNum = 1;
 
-	centerPoint = cv::Point2f(imgTemplate.cols / 2, imgTemplate.rows / 2);
-	refPoint = cv::Point2f(imgTemplate.cols, imgTemplate.rows / 2);
+	m_centerPoint = cv::Point2f(m_imgTemplate.cols / 2, m_imgTemplate.rows / 2);
+	m_refPoint = cv::Point2f(m_imgTemplate.cols, m_imgTemplate.rows / 2);
 
-	T_refAngle = refAngle;	
+	m_TrefAngle = refAngle;	
 }
 bool Segment::InitTemplate(cv::Mat templateChipImg, std::vector<cv::Point2f> chipPosPointVec)
 {
-	D_chipNum = 1;
+	m_DchipNum = 1;
 
-	imgTemplate = templateChipImg;
+	m_imgTemplate = templateChipImg;
 
-	T_chipPosPointVec = chipPosPointVec;
+	m_TchipPosPointVec = chipPosPointVec;
 
 
-	int rowsImg = imgTemplate.rows;
-	int colsImg = imgTemplate.cols;
+	int rowsImg = m_imgTemplate.rows;
+	int colsImg = m_imgTemplate.cols;
 
-	centerPoint = cv::Point2f(colsImg / 2, rowsImg / 2);
-	refPoint = cv::Point2f(colsImg, rowsImg / 2);
+	m_centerPoint = cv::Point2f(colsImg / 2, rowsImg / 2);
+	m_refPoint = cv::Point2f(colsImg, rowsImg / 2);
 	return true;
 }
 
 void Segment::caliImgDetect()
 {
-	double caliedAngle = D_chipAngleVec[0];
-	int rowsImg = imgDetect.rows;
-	int colsImg = imgDetect.cols;
+	double caliedAngle = m_DchipAngleVec[0];
+	int rowsImg = m_imgDetect.rows;
+	int colsImg = m_imgDetect.cols;
 
 	cv::Point center = cv::Point(colsImg / 2, rowsImg / 2);
 	cv::Mat M = getRotationMatrix2D(center, caliedAngle, 1);
-	warpAffine(imgDetect, imgDetectCalied, M, cv::Size(colsImg, rowsImg));	
+	warpAffine(m_imgDetect, m_imgDetectCalied, M, cv::Size(colsImg, rowsImg));	
 }
 
 bool Segment::InitDetect(cv::Mat detectImg)
 {
-	imgDetect = detectImg;
+	m_imgDetect = detectImg;
 	return true;
 }
 
@@ -148,8 +148,8 @@ bool Segment::initImage(ALGO_IN_OCR* ptr_algoDataIn, cv::Mat& img)
 
 void Segment::InitKeyPoints(std::vector<cv::KeyPoint> c_templateKeyPoint, cv::Mat c_TemplateDescriptor)
 {
-	templateKeyPoint = c_templateKeyPoint;
-	TemplateDescriptor = c_TemplateDescriptor;
+	m_templateKeyPoint = c_templateKeyPoint;
+	m_templateDescriptor = c_TemplateDescriptor;
 }
 
 bool Segment::pointVecVec2rectVecVec(std::vector<std::vector<cv::Point2f>> charsPoints, std::vector<std::vector<cv::Rect>> &charsRects)
@@ -428,24 +428,24 @@ bool Segment::slicePosition()
 	* changed date :
 	* user         :
 	*********************************************************************/
-	if (imgTemplate.empty() || imgDetect.empty())
+	if (m_imgTemplate.empty() || m_imgDetect.empty())
 	{
 		return false;
 	}
 
 	bool b_rVal = true;
-	D_rois_pointVec.clear();
-	std::vector<std::vector<cv::Rect>> roiVec = T_rois_rectVec;
+	m_Drois_pointVec.clear();
+	std::vector<std::vector<cv::Rect>> roiVec = m_Trois_rectVec;
 	
 	//compute under detectoin picuter's keypoints and descriptors
-	extractor(imgDetect, cv::Mat(), detectKeyPoint, detectDescriptor);
+	extractor(m_imgDetect, cv::Mat(), m_detectKeyPoint, m_detectDescriptor);
 			
 	cv::BFMatcher bfmatcher(cv::NORM_HAMMING, true);
-	bfmatcher.match(TemplateDescriptor, detectDescriptor, matches);
+	bfmatcher.match(m_templateDescriptor, m_detectDescriptor, m_matches);
 
 	//refine the keypoints...
-	refineKeyPoints(templateKeyPoint, detectKeyPoint, 3, matches, refineMat);
-	double numMatched = matches.size();
+	refineKeyPoints(m_templateKeyPoint, m_detectKeyPoint, 3, m_matches, m_refineMat);
+	double numMatched = m_matches.size();
 	double ratio = numMatched / FEATURE_POINTS_NUM;
 	if (ratio < 0.02)
 	{
@@ -455,32 +455,32 @@ bool Segment::slicePosition()
 	std::vector<cv::Point2f> chipKeyPointVec(numMatched);
 	std::vector<cv::Point2f> detectKeyPointVec(numMatched);
 
-	for (int j = 0; j < matches.size(); j++)
+	for (int j = 0; j < m_matches.size(); j++)
 	{
-		chipKeyPointVec[j] = templateKeyPoint[matches[j].queryIdx].pt;
-		detectKeyPointVec[j] = detectKeyPoint[matches[j].trainIdx].pt;
+		chipKeyPointVec[j] = m_templateKeyPoint[m_matches[j].queryIdx].pt;
+		detectKeyPointVec[j] = m_detectKeyPoint[m_matches[j].trainIdx].pt;
 	}
 
-	M = cv::findHomography(chipKeyPointVec, detectKeyPointVec, CV_RANSAC);
+	m_M = cv::findHomography(chipKeyPointVec, detectKeyPointVec, CV_RANSAC);
 
 	//test start: center point mapping	
 	if (0)
 	{
 		std::vector<cv::Point2f> sceneCenterPoint(1);
 		std::vector<cv::Point2f> objCenerPoint(1);
-		objCenerPoint[0] = cvPoint(imgTemplate.cols / 2, imgTemplate.rows / 2);
+		objCenerPoint[0] = cvPoint(m_imgTemplate.cols / 2, m_imgTemplate.rows / 2);
 		if (DRAW_INFO)
-			cv::circle(imgTemplate, objCenerPoint[0], 3, cv::Scalar(0, 255, 0), 3);
+			cv::circle(m_imgTemplate, objCenerPoint[0], 3, cv::Scalar(0, 255, 0), 3);
 
-		cv::perspectiveTransform(objCenerPoint, sceneCenterPoint, M);
+		cv::perspectiveTransform(objCenerPoint, sceneCenterPoint, m_M);
 
 		if (DRAW_INFO)
-			cv::circle(imgDetect, sceneCenterPoint[0], 3, cv::Scalar(0, 255, 0), 3);
+			cv::circle(m_imgDetect, sceneCenterPoint[0], 3, cv::Scalar(0, 255, 0), 3);
 	}	
 	//test end
 
 	//map every ROI's points
-	for (int num = 0; num < T_numRoi; ++num)
+	for (int num = 0; num < m_TnumRoi; ++num)
 	{
 		std::vector<cv::Rect> rectVec = roiVec[num];
 		std::vector<cv::Point2f> T_roiPointVec(rectVec.size() * 4);
@@ -508,20 +508,20 @@ bool Segment::slicePosition()
 			T_roiPointVec[pointIdx++] = point4;
 		}
 
-		cv::perspectiveTransform(T_roiPointVec, D_roiPointVec, M);
+		cv::perspectiveTransform(T_roiPointVec, D_roiPointVec, m_M);
 
-		D_rois_pointVec.push_back(D_roiPointVec);
+		m_Drois_pointVec.push_back(D_roiPointVec);
 
 	}
 
 	//map chip's position points
-	cv::perspectiveTransform(T_chipPosPointVec, D_chipPosPointVec, M);
+	cv::perspectiveTransform(m_TchipPosPointVec, m_DchipPosPointVec, m_M);
 
 	if (DRAW_INFO)
 	{
-		for (int pointIndex = 0; pointIndex < D_chipPosPointVec.size(); ++pointIndex)
+		for (int pointIndex = 0; pointIndex < m_DchipPosPointVec.size(); ++pointIndex)
 		{
-			cv::circle(imgDetect, D_chipPosPointVec[pointIndex], 3, cv::Scalar(0, 0, 255), 3);
+			cv::circle(m_imgDetect, m_DchipPosPointVec[pointIndex], 3, cv::Scalar(0, 0, 255), 3);
 		}
 	}
 	
@@ -530,9 +530,9 @@ bool Segment::slicePosition()
 
 	if (DRAW_INFO)
 	{
-		for (int i = 0; i < T_numRoi; ++i)
+		for (int i = 0; i < m_TnumRoi; ++i)
 		{
-			std::vector<cv::Point2f> roiPointVec = D_rois_pointVec[count++];
+			std::vector<cv::Point2f> roiPointVec = m_Drois_pointVec[count++];
 			for (int pointIndex = 0; pointIndex < roiPointVec.size(); ++pointIndex)
 			{
 				//cv::circle(imgDetect, cv::Point2f(roiPointVec[pointIndex].x, roiPointVec[pointIndex].y), 3, cv::Scalar(0, 0, 255), 1);
@@ -542,10 +542,10 @@ bool Segment::slicePosition()
 	}
 
 	
-	D_rois_rectVec.clear();
+	m_Drois_rectVec.clear();
 
 	//convert rectangular vertices to rects 
-	b_rVal = pointVecVec2rectVecVec(D_rois_pointVec, D_rois_rectVec);
+	b_rVal = pointVecVec2rectVecVec(m_Drois_pointVec, m_Drois_rectVec);
 	if (!b_rVal)
 	{
 		return false;
@@ -555,7 +555,7 @@ bool Segment::slicePosition()
 	cv::Mat detectImg1;
 	if (DRAW_INFO)
 	{
-		imgDetect.copyTo(detectImg1);
+		m_imgDetect.copyTo(detectImg1);
 	}
 	
 	//plot for test end
@@ -565,22 +565,22 @@ bool Segment::slicePosition()
 	if (0)
 	{
 
-		for (int i = 0; i < T_numRoi; ++i)
+		for (int i = 0; i < m_TnumRoi; ++i)
 		{
-			std::vector<cv::Rect> roiRecVec = D_rois_rectVec[count++];
+			std::vector<cv::Rect> roiRecVec = m_Drois_rectVec[count++];
 			for (int rectIndex = 0; rectIndex < roiRecVec.size(); ++rectIndex)
 			{
 				if (rectIndex % 2 == 0)
-					cv::rectangle(imgDetect, roiRecVec[rectIndex], cv::Scalar(0, 0, 255), 1);
+					cv::rectangle(m_imgDetect, roiRecVec[rectIndex], cv::Scalar(0, 0, 255), 1);
 				else
-					cv::rectangle(imgDetect, roiRecVec[rectIndex], cv::Scalar(255, 0, 0), 1);
+					cv::rectangle(m_imgDetect, roiRecVec[rectIndex], cv::Scalar(255, 0, 0), 1);
 			}
 		}
 	
 	}
 
 	//compute each of roi's rectangular vertices
-	b_rVal = roisRectVec2roisPosRectVec(D_rois_rectVec);
+	b_rVal = roisRectVec2roisPosRectVec(m_Drois_rectVec);
 	if (!b_rVal)
 	{
 		return false;
@@ -594,7 +594,7 @@ bool Segment::slicePosition()
 
 	if (0)
 	{
-		cv::imshow("roiImg0", roiBinaryImgVec[0]);
+		cv::imshow("roiImg0", m_roiBinaryImgVec[0]);
 	}
 	//adjust character's rectangle 
 	b_rVal = refineCharPos();
@@ -608,9 +608,9 @@ bool Segment::slicePosition()
 	if (DRAW_INFO)
 	{
 
-		for (int i = 0; i < T_numRoi; ++i)
+		for (int i = 0; i < m_TnumRoi; ++i)
 		{
-			std::vector<cv::Rect> roiRecVec = D_rois_rectVec[count++];
+			std::vector<cv::Rect> roiRecVec = m_Drois_rectVec[count++];
 			for (int rectIndex = 0; rectIndex < roiRecVec.size(); ++rectIndex)
 			{
 				if (rectIndex % 2 == 0)
@@ -626,11 +626,11 @@ bool Segment::slicePosition()
 	cv::Rect rect;
 	rect.x = 0;
 	rect.y = 0;
-	rect.width = imgDetect.cols;
-	rect.height = imgDetect.rows;
-	double angle = chipsAngle(rect, M);
-	angle += T_refAngle;
-	D_chipAngleVec.push_back(angle);
+	rect.width = m_imgDetect.cols;
+	rect.height = m_imgDetect.rows;
+	double angle = chipsAngle(rect, m_M);
+	angle += m_TrefAngle;
+	m_DchipAngleVec.push_back(angle);
 
 	caliImgDetect();
 
@@ -678,8 +678,8 @@ double Segment::chipsAngle(cv::Rect detectChipRect, cv::Mat M)
 	std::vector<cv::Point2f> refPointVec(1);
 	std::vector<cv::Point2f> detectCenterPointVec;
 	std::vector<cv::Point2f> detectRefPointVec;
-	centerPointVec[0] = centerPoint;
-	refPointVec[0] = refPoint;
+	centerPointVec[0] = m_centerPoint;
+	refPointVec[0] = m_refPoint;
 
 	cv::perspectiveTransform(centerPointVec, detectCenterPointVec, M);
 	cv::perspectiveTransform(refPointVec, detectRefPointVec, M);
@@ -709,12 +709,12 @@ bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois
 	* changed date :
 	* user         :
 	*********************************************************************/
-	D_roisPosRectVec.clear();
+	m_DroisPosRectVec.clear();
 
 	if (rois_rectVec.empty())
 		return false;
 
-	for (int i = 0; i < T_numRoi; ++i)
+	for (int i = 0; i < m_TnumRoi; ++i)
 	{
 		std::vector<cv::Rect> singleRoiRectVec;
 		singleRoiRectVec = rois_rectVec[i];
@@ -781,7 +781,7 @@ bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois
 			roiRec.y = yMin;
 		}
 
-		if (xMax + 8 > imgDetect.cols)
+		if (xMax + 8 > m_imgDetect.cols)
 		{
 			roiRec.width = xMax - xMin + singleRoiRectVec[wIndex].width;
 		}
@@ -790,7 +790,7 @@ bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois
 			roiRec.width = xMax - xMin + singleRoiRectVec[wIndex].width + 8;
 		}
 		
-		if (yMax + 3 > imgDetect.rows)
+		if (yMax + 3 > m_imgDetect.rows)
 		{
 			roiRec.height = yMax - yMin + singleRoiRectVec[hIndex].height;
 		}
@@ -799,11 +799,11 @@ bool Segment::roisRectVec2roisPosRectVec(std::vector<std::vector<cv::Rect>> rois
 			roiRec.height = yMax - yMin + singleRoiRectVec[hIndex].height + 3;
 		}
 		
-		D_roisPosRectVec.push_back(roiRec);
+		m_DroisPosRectVec.push_back(roiRec);
 
 		if (0)
 		{
-			cv::rectangle(imgDetect, roiRec, cv::Scalar(255, 255, 0), 1);
+			cv::rectangle(m_imgDetect, roiRec, cv::Scalar(255, 255, 0), 1);
 		}
 		
 	}
@@ -826,30 +826,30 @@ bool Segment::roiBinary()
 	*********************************************************************/
 	cv::Mat roiImg;
 
-	roisOffsetPosVec.clear();
-	roiBinaryImgVec.clear();
+	m_roisOffsetPosVec.clear();
+	m_roiBinaryImgVec.clear();
 
-	for (int roiNumIndex = 0; roiNumIndex < T_numRoi; ++roiNumIndex)
+	for (int roiNumIndex = 0; roiNumIndex < m_TnumRoi; ++roiNumIndex)
 	{
-		cv::Rect rect = D_roisPosRectVec[roiNumIndex];
+		cv::Rect rect = m_DroisPosRectVec[roiNumIndex];
 
-		if (rect.y + rect.height > imgDetect.rows || rect.x + rect.width > imgDetect.cols)
+		if (rect.y + rect.height > m_imgDetect.rows || rect.x + rect.width > m_imgDetect.cols)
 			return false;
 
-		roiImg = imgDetect(cv::Range(rect.y, rect.y + rect.height), cv::Range(rect.x, rect.x + rect.width));
+		roiImg = m_imgDetect(cv::Range(rect.y, rect.y + rect.height), cv::Range(rect.x, rect.x + rect.width));
 
 		std::vector<int> offset;
 		offset.push_back(rect.x);
 		offset.push_back(rect.y);
-		roisOffsetPosVec.push_back(offset);
+		m_roisOffsetPosVec.push_back(offset);
 
-		cv::GaussianBlur(roiImg, roiImgBlur, cv::Size(3, 3), 1);
-		cv::cvtColor(roiImgBlur, roiImgGray, cv::COLOR_BGR2GRAY);
+		cv::GaussianBlur(roiImg, m_roiImgBlur, cv::Size(3, 3), 1);
+		cv::cvtColor(m_roiImgBlur, m_roiImgGray, cv::COLOR_BGR2GRAY);
 
-		int threshVal = calcThreshold(roiImgGray);
-		cv::threshold(roiImgGray, roiImgThresh, threshVal , 255, cv::THRESH_BINARY);
+		int threshVal = calcThreshold(m_roiImgGray);
+		cv::threshold(m_roiImgGray, m_roiImgThresh, threshVal , 255, cv::THRESH_BINARY);
 
-		roiBinaryImgVec.push_back(roiImgThresh);
+		m_roiBinaryImgVec.push_back(m_roiImgThresh);
 	}
 
 	return true;
@@ -868,29 +868,29 @@ bool Segment::refineCharPos()
 	* user         :
 	*********************************************************************/
 	int ii;
-	for (int i = 0; i < roiBinaryImgVec.size(); ++i)
+	for (int i = 0; i < m_roiBinaryImgVec.size(); ++i)
 	{
-		for (int j = 0; j < D_rois_rectVec[i].size(); ++j)
+		for (int j = 0; j < m_Drois_rectVec[i].size(); ++j)
 		{
 			ii = i;
-			D_rois_rectVec[ii][j].x -= roisOffsetPosVec[ii][0];
-			D_rois_rectVec[ii][j].y -= roisOffsetPosVec[ii][1];
+			m_Drois_rectVec[ii][j].x -= m_roisOffsetPosVec[ii][0];
+			m_Drois_rectVec[ii][j].y -= m_roisOffsetPosVec[ii][1];
 
-			if (D_rois_rectVec[ii][j].x < 0 || D_rois_rectVec[ii][j].y < 0)
+			if (m_Drois_rectVec[ii][j].x < 0 || m_Drois_rectVec[ii][j].y < 0)
 			{
 				return false;
 			}
 		}
 
-		tuneCharRectPos(roiBinaryImgVec[i], D_rois_rectVec[i]);
+		tuneCharRectPos(m_roiBinaryImgVec[i], m_Drois_rectVec[i]);
 
-		for (int j = 0; j < D_rois_rectVec[i].size(); ++j)
+		for (int j = 0; j < m_Drois_rectVec[i].size(); ++j)
 		{
 			ii = i;
-			D_rois_rectVec[ii][j].x += roisOffsetPosVec[ii][0];
-			D_rois_rectVec[ii][j].y += roisOffsetPosVec[ii][1];
+			m_Drois_rectVec[ii][j].x += m_roisOffsetPosVec[ii][0];
+			m_Drois_rectVec[ii][j].y += m_roisOffsetPosVec[ii][1];
 
-			if (D_rois_rectVec[ii][j].x > imgDetect.cols || D_rois_rectVec[ii][j].y > imgDetect.rows)
+			if (m_Drois_rectVec[ii][j].x > m_imgDetect.cols || m_Drois_rectVec[ii][j].y > m_imgDetect.rows)
 			{
 				return false;
 			}

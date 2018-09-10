@@ -12,6 +12,8 @@
 #define FEATURE_POINTS_NUM 1000
 #define DEBUG 0
 
+#include "definetype.h"
+
 class Segment
 {
 public:
@@ -57,42 +59,42 @@ private:
 	
 
 public:
-	cv::Mat imgTemplate;
-	cv::Mat imgDetect;
-	cv::Mat imgDetectCalied;
+	cv::Mat m_imgTemplate;
+	cv::Mat m_imgDetect;
+	cv::Mat m_imgDetectCalied;
 
-	std::vector<double> D_chipAngleVec;
-	int D_chipNum;
-	int T_numRoi;
-	std::vector<cv::Point2f> T_chipPosPointVec;
-	std::vector<std::vector<cv::Rect>> T_rois_rectVec;
-	std::vector<std::vector<cv::Rect>> D_rois_rectVec;
-	std::vector<cv::Point2f> D_chipPosPointVec;
-	std::vector<cv::Rect> D_roisPosRectVec;
-	cv::Ptr<cv::ORB> orb2;
-	std::vector<cv::KeyPoint> templateKeyPoint;
-	cv::Mat TemplateDescriptor;
+	std::vector<double> m_DchipAngleVec;
+	int m_DchipNum;
+	int m_TnumRoi;
+	std::vector<cv::Point2f> m_TchipPosPointVec;
+	std::vector<std::vector<cv::Rect>> m_Trois_rectVec;
+	std::vector<std::vector<cv::Rect>> m_Drois_rectVec;
+	std::vector<cv::Point2f> m_DchipPosPointVec;
+	std::vector<cv::Rect> m_DroisPosRectVec;
+	cv::Ptr<cv::ORB> m_orb;
+	std::vector<cv::KeyPoint> m_templateKeyPoint;
+	cv::Mat m_templateDescriptor;
 
 private:
-	std::vector<cv::DMatch> matches;
-	cv::Mat refineMat;
-	cv::Mat M; //mapping matrix
-	cv::Point2f centerPoint;
-	cv::Point2f refPoint;
+	std::vector<cv::DMatch> m_matches;
+	cv::Mat m_refineMat;
+	cv::Mat m_M; //mapping matrix
+	cv::Point2f m_centerPoint;
+	cv::Point2f m_refPoint;
 
-	cv::Mat roiImgBlur;
-	cv::Mat roiImgGray;
-	cv::Mat roiImgThresh;
-	cv::Mat templateGrayImg;
-	cv::Mat detectGrayImg;
-	double T_refAngle;//slant degree computed by the chip's top left point and top right point
+	cv::Mat m_roiImgBlur;
+	cv::Mat m_roiImgGray;
+	cv::Mat m_roiImgThresh;
+	cv::Mat m_templateGrayImg;
+	cv::Mat m_detectGrayImg;
+	double m_TrefAngle;//slant degree computed by the chip's top left point and top right point
 	
-	std::vector<cv::KeyPoint> detectKeyPoint;
-	cv::Mat detectDescriptor;
-	std::vector<cv::Mat> roiBinaryImgVec;
-	std::vector<std::vector<int>> roisOffsetPosVec;
+	std::vector<cv::KeyPoint> m_detectKeyPoint;
+	cv::Mat m_detectDescriptor;
+	std::vector<cv::Mat> m_roiBinaryImgVec;
+	std::vector<std::vector<int>> m_roisOffsetPosVec;
 	//all of points of ROIs corresponding to under detection picture, each of point vector is the set of ROI points
-	std::vector<std::vector<cv::Point2f>> D_rois_pointVec;
+	std::vector<std::vector<cv::Point2f>> m_Drois_pointVec;
 
 	orb::ORBextractor extractor;
 

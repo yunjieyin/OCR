@@ -12,7 +12,7 @@ TemplateImg::~TemplateImg()
 
 }
 
-int TemplateImg::calcThreshold(cv::Mat img)
+int TemplateImg::calcThreshold(cv::Mat& img)
 {
 	if (img.empty())
 	{
@@ -81,7 +81,7 @@ int TemplateImg::calcThreshold(cv::Mat img)
 	return valThresh;
 }
 
-double TemplateImg::calcAngle(cv::Point2f point1, cv::Point2f point2)
+double TemplateImg::calcAngle(cv::Point2f& point1, cv::Point2f& point2)
 {
 	double angle = 0;
 
@@ -117,10 +117,10 @@ bool TemplateImg::caliImage()
 	cv::Mat imgThresh;
 	cv::Mat imgCanny;
 
-	GaussianBlur(CT_imgObj, imgBlur, cv::Size(5, 5), 1);
+	GaussianBlur(m_objectImg, imgBlur, cv::Size(5, 5), 1);
 
-	int rows = CT_imgObj.rows;
-	int cols = CT_imgObj.cols;
+	int rows = m_objectImg.rows;
+	int cols = m_objectImg.cols;
 	cv::Mat imgScal;
 	imgScal = imgBlur(cv::Range(rows / 10, 9 * rows / 10), cv::Range(cols / 10, 9 * cols / 10));
 
@@ -173,26 +173,26 @@ bool TemplateImg::caliImage()
 		aveAng = 0;
 	}
 
-	int rowsImg = CT_imgObj.rows;
-	int colsImg = CT_imgObj.cols;
+	int rowsImg = m_objectImg.rows;
+	int colsImg = m_objectImg.cols;
 
 	cv::Point center = cv::Point(colsImg / 2, rowsImg / 2);
 	cv::Mat M = getRotationMatrix2D(center, aveAng, 1);
-	warpAffine(CT_imgObj, CT_caliedImgObj, M, cv::Size(colsImg, rowsImg));
+	warpAffine(m_objectImg, m_caliedObjectImg, M, cv::Size(colsImg, rowsImg));
 
 	return true;
 }
 
-bool TemplateImg::InitTemplate(cv::Mat templateChipImg, std::vector<cv::Point2f> chipPosPointVec)
+bool TemplateImg::InitTemplate(cv::Mat& templateChipImg, std::vector<cv::Point2f>& chipPosPointVec)
 {
-	CT_imgTemplate = templateChipImg;
-	CT_chipPosPointVec = chipPosPointVec;
+	m_templateImg = templateChipImg;
+	m_chipPosPointVec = chipPosPointVec;
 
 	return true;
 }
 
-void TemplateImg::InitKeyPoints(std::vector<cv::KeyPoint> c_templateKeyPoint, cv::Mat c_TemplateDescriptor)
+void TemplateImg::InitKeyPoints(std::vector<cv::KeyPoint>& c_templateKeyPoint, cv::Mat& c_TemplateDescriptor)
 {
-	CT_templateKeyPoint = c_templateKeyPoint;
-	CT_TemplateDescriptor = c_TemplateDescriptor;
+	m_templateKeyPoints = c_templateKeyPoint;
+	m_TemplateDescriptor = c_TemplateDescriptor;
 }
